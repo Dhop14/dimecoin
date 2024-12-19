@@ -210,12 +210,41 @@ bool CheckSyncCheckpoint(const uint256 hashBlock, const int nHeight, const CBloc
             return true;
         }
     }
-
     const CBlockIndex* pindexSync;
     {
         LOCK2(cs_main, cs_hashSyncCheckpoint);
-        // sync-checkpoint should always be accepted block
-        assert(mapBlockIndex.count(hashSyncCheckpoint));
+        // sync-checkpoint should be an accepted block
+        if (!mapBlockIndex.count(hashSyncCheckpoint)) {
+            LogPrintf("Checkpoints: %s: WARNING - Sync checkpoint %s not found in block index after non-graceful shutdown\n", 
+                     __func__, hashSyncCheckpoint.ToString());
+            
+            // First recovery attempt: Try to reset the sync checkpoint
+            LogPrint(BCLog::NET, "Checkpoints: Attempting primary recovery of sync checkpoint state\n");
+            if (!ResetSyncCheckpoint()) {
+                LogPrintf("Checkpoints: %s: Primary recovery attempt failed\n", __func__);
+            }
+            
+            // Check if primary recovery worked
+            if (!mapBlockIndex.count(hashSyncCheckpoint)) {
+                // Primary recovery failed, check if we're already in reindex mode
+                if (fReindex) {
+                    LogPrintf("Checkpoints: %s: Reindex in progress, waiting for completion\n", __func__);
+                    return error("%s: Reindex in progress, please wait for completion", __func__);
+                }
+                
+                // Not in reindex mode, suggest it as last resort
+                LogPrintf("Checkpoints: %s: CRITICAL - Recovery failed. A full reindex is required.\n", __func__);
+                LogPrintf("Checkpoints: %s: Please restart Dimecoin Core with -reindex parameter\n", __func__);
+                
+                // Store the fact that we need reindex in debug.log for diagnostic purposes
+                LogPrintf("Checkpoints: %s: Technical details: Failed to find checkpoint %s in mapBlockIndex\n", 
+                         __func__, hashSyncCheckpoint.ToString());
+                
+                return error("%s: Sync checkpoint recovery failed - please restart with -reindex", __func__);
+            }
+            
+            LogPrint(BCLog::NET, "Checkpoints: Successfully recovered sync checkpoint state\n");
+        }
         pindexSync = mapBlockIndex[hashSyncCheckpoint];
     }
 
