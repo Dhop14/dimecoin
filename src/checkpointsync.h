@@ -30,6 +30,7 @@ bool CheckSyncCheckpoint(const uint256 hashBlock, const int nHeight, const CBloc
 bool CheckCheckpointPubKey();
 bool SetCheckpointPrivKey(std::string strPrivKey);
 bool SendSyncCheckpoint(uint256 hashCheckpoint);
+bool ResetSyncCheckpoint();
 
 // Synchronized checkpoint (introduced first in ppcoin)
 class CUnsignedSyncCheckpoint
